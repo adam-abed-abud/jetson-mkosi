@@ -1,0 +1,16 @@
+#!/bin/sh
+# A stub that does nothing and reports success.
+#
+# Several of the nvidia-l4t-* packages call update-initramfs from their
+# postinst, because on a normally installed Jetson the initramfs has to be
+# rebuilt whenever a driver changes. Here there is nothing to rebuild: the image
+# is assembled from scratch on every build, and its initramfs is produced once
+# at the end, after all packages are in place. Worse, the real update-initramfs
+# comes from initramfs-tools, which would try to inspect the running system.
+#
+# So the packages get a program that exists, is executable, and exits zero.
+#
+# This file is in mkosi.skeleton/, which mkosi copies into the image before the
+# package manager runs. That timing is the point: the stub has to be there by
+# the time the first package's postinst looks for it.
+exit 0

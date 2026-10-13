@@ -1,0 +1,16 @@
+# The language and formatting settings, for programs that read this file.
+#
+# There are two files that say the same thing, read by different software.
+# systemd reads /etc/locale.conf, which mkosi writes from the Locale= setting in
+# mkosi.conf.d/10-base-system.conf. Debian and Ubuntu's login machinery reads
+# this one, through pam_env, and nothing in mkosi writes it. Both have to agree
+# or a service and a login shell end up with different settings.
+#
+# It is here at all because nvidia-l4t-init's post-installation script appends
+# LANG=en_US.UTF-8 to this file during the build, and no en_US locale is
+# generated in this image. The result is the familiar "cannot change locale"
+# warning on every login. C.UTF-8 is built into the C library and always
+# present, and for a machine running control software it is also the better
+# choice: number formatting, date formatting and text sorting then behave the
+# same way on every device.
+LANG=C.UTF-8

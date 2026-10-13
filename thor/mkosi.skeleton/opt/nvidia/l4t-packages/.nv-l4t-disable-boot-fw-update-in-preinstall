@@ -1,0 +1,24 @@
+The presence of this file tells NVIDIA's bootloader package not to flash the
+board's boot firmware while it is being installed.
+
+This is NVIDIA's own escape hatch, not a trick. The nvidia-l4t-bootloader
+package's maintainer script normally writes the bootloader into the QSPI flash
+chip on the Jetson module. That is the right thing to do when you are upgrading
+a running Jetson. It is meaningless when you are assembling a filesystem in a
+build container: there is no Jetson, and the attempt either fails or, worse,
+goes looking at the build machine's own storage.
+
+The check is the first thing the script does. In r39.2 it is line 30 of the
+package's postinst -- the file name says "preinstall" but the test lives in the
+post-installation script -- and it reads:
+
+    if [ -e "/opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall" ]; then
+        echo "Pre-installing bootloader package, skip flashing"
+        exit 0
+    fi
+
+Only the file's existence matters; nothing reads what is in it. Writing an
+explanation here costs nothing and saves the next reader a search.
+
+Boot firmware for this image is expected to be flashed separately, with NVIDIA's
+own tools. See the README.

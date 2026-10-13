@@ -1,0 +1,55 @@
+# Which services start on this image, and which do not.
+#
+# systemd calls this a "preset" file. Rather than switching services on and off
+# one by one with 'systemctl enable', you state the policy here and systemd
+# applies it in one pass. mkosi runs that pass near the end of every build, so
+# this file -- not a script -- is the thing that decides what runs at boot. A
+# script that called 'systemctl enable' earlier in the build would simply be
+# overruled by it.
+#
+# Preset files are read in filename order and the first rule that matches a unit
+# wins. The '00-' prefix puts this file ahead of Ubuntu's own policy, which
+# enables almost everything.
+
+# --- switched on -------------------------------------------------------------
+
+# The GPU and display driver stack. See nvidia-display-load.service for why the
+# drivers are loaded by a service instead of automatically.
+enable nvidia-display-load.service
+
+# Network, name resolution, clock.
+enable systemd-networkd.service
+enable systemd-resolved.service
+enable systemd-timesyncd.service
+
+# Remote access, and mDNS so the board answers to <hostname>.local.
+enable ssh.service
+enable avahi-daemon.service
+
+# /tmp as a tmpfs rather than a directory on the disk. On a system whose root
+# filesystem is meant to be immutable, writes that are scratch by nature should
+# not touch it.
+enable tmp.mount
+
+# NVIDIA's fan controller and power model daemon. Thor needs active cooling, so
+# the fan controller is not optional.
+enable nvfancontrol.service
+
+# --- switched off ------------------------------------------------------------
+
+# Unattended package upgrades. An image-based system is updated by replacing the
+# image, so a package manager running behind its back is at best wasted work.
+disable apt-daily.service
+disable apt-daily.timer
+disable apt-daily-upgrade.service
+disable apt-daily-upgrade.timer
+
+# NVIDIA's own boot-time services, each of which assumes it is running on a
+# conventionally installed Jetson. The post-installation script explains what
+# each one does and why it cannot work here, and additionally masks them so that
+# nothing can pull them in as a dependency.
+disable nv-graphics.service
+disable nv-l4t-bootloader-config.service
+disable nv-load-display-modules.service
+disable nv-load-gpu-libs.service
+disable nvpmodel.service

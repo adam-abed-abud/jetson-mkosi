@@ -1,0 +1,20 @@
+# Nothing is mounted from this file.
+#
+# This file exists only to override the one NVIDIA writes. The nvidia-l4t-init
+# package's post-installation script replaces /etc/fstab whenever it sees the
+# flag file in /opt/nvidia/l4t-packages that this build uses to stop the
+# bootloader package from flashing firmware. The file it writes contains:
+#
+#   /dev/root  /  ext4  defaults  0 1
+#
+# That line is right for a Jetson installed NVIDIA's way, where the initramfs
+# creates a /dev/root device node. This image does not: the root filesystem is
+# named on the kernel command line by its partition identifier, and the
+# initramfs mounts it before anything reads this file. Leaving NVIDIA's version
+# in place would leave systemd with a mount unit pointing at a device that does
+# not exist.
+#
+# Everything else that needs mounting is handled by systemd. /tmp comes from
+# tmp.mount, and the EFI system partition is picked up automatically by
+# systemd-gpt-auto-generator, which finds it on the disk the firmware booted
+# from.

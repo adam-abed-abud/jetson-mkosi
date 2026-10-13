@@ -1,0 +1,32 @@
+# Reference checkouts. Both are separate upstream repositories that we read but
+# do not vendor, so neither belongs in this tree.
+#   bootc-jetson  github.com/yeetypete/bootc-jetson
+#   particleos    github.com/systemd/particleos
+/bootc-jetson/
+/particleos/
+
+# Captured serial console output. Useful while debugging a boot, not a source.
+/tty_console_output.txt
+*.console.log
+
+# Working notes kept alongside the code but not published with it: the original
+# task brief, and the reports and plans under docs/.
+/design_doc.md
+/docs/
+
+# Everything mkosi writes. The two cache directories are worth keeping between
+# builds -- see thor/mkosi.conf -- but they are downloads, not sources.
+/thor/mkosi.output/
+/thor/mkosi.cache/
+/thor/mkosi.pkgcache/
+/thor/mkosi.builddir/
+
+# Local overrides. mkosi reads these before anything else, so they are the place
+# for settings that belong to one machine rather than to the project.
+/thor/mkosi.local.conf
+/thor/mkosi.local/
+
+# Disk images, wherever they end up.
+*.raw
+*.raw.zst
+*.raw.zst.sha256

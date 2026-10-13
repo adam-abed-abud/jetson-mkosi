@@ -1,0 +1,32 @@
+# NVIDIA's Jetson package repositories for JetPack 7.2, which is Jetson Linux
+# r39.2. This is the whole of the board support package: there is no
+# Linux_for_Tegra tarball to unpack and no apply_binaries.sh to run, just two
+# ordinary apt repositories.
+#
+#   som     the per-module packages -- the GPU and display stack, the camera
+#           stack, the bootloader payload, the power and fan daemons. Orin and
+#           Thor share this suite and are told apart by package name.
+#   common  the parts that are not module-specific: CUDA, TensorRT, cuDNN.
+#
+# The suite name r39.2 is NVIDIA's; it is the repository's codename, not an
+# Ubuntu release name.
+#
+# This file lives in mkosi.sandbox/ rather than in the image. mkosi runs apt
+# from outside the image, pointed at the image directory, so apt reads its
+# configuration from mkosi's sandbox. A sources file placed inside the image
+# would be read by apt only if something ran apt on the booted device, which an
+# immutable image never does.
+
+Types: deb
+URIs: https://repo.download.nvidia.com/jetson/som
+Suites: r39.2
+Components: main
+Architectures: arm64
+Signed-By: /etc/apt/keyrings/nvidia-jetson-ota.asc
+
+Types: deb
+URIs: https://repo.download.nvidia.com/jetson/common
+Suites: r39.2
+Components: main
+Architectures: arm64
+Signed-By: /etc/apt/keyrings/nvidia-jetson-ota.asc

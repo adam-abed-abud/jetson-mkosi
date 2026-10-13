@@ -1,0 +1,114 @@
+#!/bin/bash
+# Fixes that have to be applied after every package is installed.
+#
+# The ".chroot" in the filename tells mkosi to run this script inside the image
+# rather than beside it, so the paths below are the image's own and the commands
+# are the image's own aarch64 binaries, running under the emulator.
+#
+# Everything here comes from bootc-jetson's Dockerfile, where the same work is
+# done by a series of RUN steps. Each section says what it is for.
+
+set -euo pipefail
+
+# --- 1. Undo Canonical's decision to leave the GPU drivers unloaded -----------
+#
+# Canonical's Jetson kernel packages ship a modprobe configuration file that
+# blacklists the GPU modules outright. Their reasoning is that NVIDIA's own
+# nv-load-* services should decide when to load them. Those services do not work
+# on an image with a read-only /usr (see section 4), so they are switched off,
+# and this blacklist has to go with them or nothing would ever load the GPU.
+rm -f /etc/modprobe.d/tegra-igpu-jetson-defaults_nvidia-display_nvidia-tegra.conf
+
+# --- 2. Put libcuda where the dynamic linker will find it ---------------------
+#
+# NVIDIA ships two builds of the CUDA driver library, one for each GPU kernel
+# driver, and installs both into versioned directories under /opt. A service
+# called nv-load-gpu-libs.service normally picks the right one at boot and
+# symlinks it into the system library path. It does that by writing into /usr,
+# which an immutable image will not allow, so the service is masked and the
+# symlinks are made here instead, at build time, when /usr is still writable.
+#
+# 'openrm' is the Thor choice. An Orin image would point at the nvgpu directory.
+gpu_libs=/opt/nvidia/l4t-gpu-libs/openrm
+ln -sfnT "$gpu_libs/libcuda.so"   /usr/lib/aarch64-linux-gnu/libcuda.so
+ln -sfnT "$gpu_libs/libcuda.so.1" /usr/lib/aarch64-linux-gnu/libcuda.so.1
+
+# The rest of the GPU libraries stay where they are; the linker is told to look
+# in that directory. ldconfig rebuilds its cache so the change takes effect.
+echo "$gpu_libs" > /etc/ld.so.conf.d/000-nvidia-gpu-libs.conf
+ldconfig
+
+# --- 3. Make tmp.mount available to be enabled --------------------------------
+#
+# Ubuntu ships the unit that mounts /tmp as a tmpfs in /usr/share/systemd/,
+# outside the directories systemd searches, as a way of making it opt-in.
+# Copying it into the search path is how you opt in. The preset file does the
+# actual enabling.
+cp /usr/share/systemd/tmp.mount /usr/lib/systemd/system/
+
+# --- 4. Switch off NVIDIA's boot-time services --------------------------------
+#
+# Each of these assumes it is running on a Jetson that was installed the
+# conventional way, with a writable root filesystem and a disk laid out by
+# NVIDIA's flashing tools. Note that the L4T packages install their unit files
+# directly into /etc/systemd/system, which is unusual -- that directory is
+# normally the administrator's -- so switching them off means deleting files
+# there, not just removing symlinks.
+#
+#   nv-l4t-bootloader-config.service  inspects the boot disk with lsblk and
+#       rewrites bootloader configuration to match. It does not understand this
+#       image's layout. Safe to drop on Thor: the UEFI firmware and nvbootctrl
+#       read the board's identity from an EEPROM on the module, not from here.
+#
+#   nv-load-gpu-libs.service          the libcuda symlinks from section 2.
+#   nv-load-display-modules.service   loads the display drivers and then runs
+#       'depmod -a'. Both write into /usr. Replaced by
+#       nvidia-display-load.service.
+#   nv-graphics.service               the same idea for the graphics stack.
+#
+#   nvpmodel.service                  applies a default power profile at boot.
+#       On Thor, changing power mode requires a reboot, and nvpmodel records the
+#       pending change by writing to /etc. On an image whose /etc is reset on
+#       every boot that record never survives, so the service fails every time.
+#       Masking it leaves the board in the firmware's default power mode.
+rm -f \
+    /etc/systemd/system/nv-graphics.service \
+    /etc/systemd/system/nv-l4t-bootloader-config.service \
+    /etc/systemd/system/nv-load-display-modules.service \
+    /etc/systemd/system/nv-load-gpu-libs.service \
+    /etc/systemd/system/nvpmodel.service \
+    /etc/systemd/system/multi-user.target.wants/nv-l4t-bootloader-config.service \
+    /etc/systemd/system/multi-user.target.wants/nv-load-display-modules.service \
+    /etc/systemd/system/multi-user.target.wants/nvpmodel.service \
+    /etc/systemd/system/sysinit.target.wants/nv-load-gpu-libs.service
+
+# Masking replaces the unit with a link to /dev/null, which makes it impossible
+# to start -- including as a dependency of something else that is running.
+systemctl mask \
+    nv-graphics.service \
+    nv-l4t-bootloader-config.service \
+    nv-load-display-modules.service \
+    nv-load-gpu-libs.service \
+    nvpmodel.service
+
+# --- 5. A user to log in as ---------------------------------------------------
+#
+# This is a proof of concept, so there is an account with a password everyone
+# knows. A production image would carry an SSH key and no password at all.
+#
+# The 'debug' group is created because NVIDIA's udev rules assign the GPU's
+# debug device nodes to it and nothing in Ubuntu creates it. The 'render' group
+# owns /dev/dri/renderD128, the device node CUDA opens; without membership the
+# first CUDA call fails with error 801, which reads as "operation not supported"
+# and sends people hunting for a driver problem that is not there.
+groupadd --force --system debug
+useradd --create-home --shell /bin/bash \
+        --groups sudo,adm,dialout,video,render,debug \
+        ubuntu
+echo 'ubuntu:ubuntu' | chpasswd
+echo 'ubuntu ALL=(root) NOPASSWD:ALL' > /etc/sudoers.d/ubuntu
+chmod 0440 /etc/sudoers.d/ubuntu
+
+# Ubuntu 24.04 removed the pam_lastlog module but left a reference to it in the
+# login configuration, so every console login prints a failure to load it.
+sed -i '/pam_lastlog\.so/d' /etc/pam.d/login

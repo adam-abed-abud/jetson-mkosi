@@ -1,0 +1,11 @@
+# Bring up any wired interface with DHCP.
+#
+# The match is deliberately broad -- every interface whose name starts with 'e',
+# which under systemd's naming scheme means every Ethernet device -- because the
+# exact name depends on which carrier board the module is on.
+
+[Match]
+Name=e*
+
+[Network]
+DHCP=yes

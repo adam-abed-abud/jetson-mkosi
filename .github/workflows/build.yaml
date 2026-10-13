@@ -1,0 +1,95 @@
+# Build the Jetson Thor image and check it.
+#
+# The point of this file is to show that the build needs nothing from the
+# machine it runs on beyond Docker. A GitHub runner is an ordinary x86-64 Ubuntu
+# box with no Jetson, no arm64 hardware and no special packages, and the build
+# works there exactly as it does on a developer's laptop, because everything it
+# needs is inside the builder container.
+
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  thor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Register the aarch64 emulator with the runner's kernel. The builder
+      # container can do this itself, but doing it here means the registration
+      # is visible in the log when something goes wrong with it.
+      - name: Set up aarch64 emulation
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build the builder container
+        run: docker build --tag jetson-mkosi-builder builder/
+
+      # The cache holds the .deb files downloaded from Canonical and NVIDIA.
+      # Restoring it turns a build that downloads several gigabytes into one
+      # that downloads almost nothing. The key changes whenever the package
+      # lists change, which is when the contents would differ anyway.
+      - name: Restore the package cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            thor/mkosi.pkgcache
+            thor/mkosi.cache
+          key: mkosi-cache-${{ hashFiles('thor/mkosi.conf', 'thor/mkosi.conf.d/*') }}
+          restore-keys: mkosi-cache-
+
+      - name: Build the image
+        run: |
+          docker run --rm --privileged \
+            --volume "$PWD:/work" --workdir /work/thor \
+            jetson-mkosi-builder mkosi --force build
+
+      - name: Check the image
+        run: |
+          docker run --rm --privileged --entrypoint bash \
+            --volume "$PWD:/work" --workdir /work \
+            jetson-mkosi-builder scripts/verify.sh thor/mkosi.output/jetson-thor.raw
+
+      # Starting the image proves things reading it cannot: that the firmware
+      # finds the boot manager, that the boot manager starts the kernel, and
+      # that the kernel mounts the root filesystem and comes up. The emulated
+      # machine has none of Thor's hardware, so this says nothing about the
+      # Tegra side; it catches the structural mistakes. It stops as soon as a
+      # login prompt appears, and fails the build if one never does.
+      - name: Boot the image in an emulator
+        run: |
+          docker run --rm --privileged --entrypoint bash \
+            --volume "$PWD:/work" --workdir /work \
+            jetson-mkosi-builder scripts/qemu-boot.sh \
+              thor/mkosi.output/jetson-thor.raw 1800
+
+      # Compressed, the image is small enough to keep as a build artifact and
+      # download onto a bench machine for flashing. This runs in the container
+      # for the same reason the build does: mkosi builds as root, so the output
+      # directory belongs to root.
+      - name: Compress the image
+        run: |
+          docker run --rm --privileged --entrypoint bash \
+            --volume "$PWD:/work" --workdir /work \
+            jetson-mkosi-builder -c '
+              zstd -T0 --force \
+                -o thor/mkosi.output/jetson-thor.raw.zst \
+                thor/mkosi.output/jetson-thor.raw \
+              && sha256sum thor/mkosi.output/jetson-thor.raw.zst \
+                > thor/mkosi.output/jetson-thor.raw.zst.sha256'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jetson-thor-image
+          path: |
+            thor/mkosi.output/jetson-thor.raw.zst
+            thor/mkosi.output/jetson-thor.raw.zst.sha256
+          retention-days: 14

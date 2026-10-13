@@ -1,0 +1,9 @@
+Explanation: The initramfs for this image is built once, at the end of the
+Explanation: build, by mkosi. Ubuntu's initramfs-tools would install hooks that
+Explanation: rebuild it from inside the image on every kernel or driver change,
+Explanation: which cannot work here and is not wanted. A negative priority
+Explanation: makes apt refuse to install the package even if something
+Explanation: recommends it.
+Package: initramfs-tools*
+Pin: release *
+Pin-Priority: -1

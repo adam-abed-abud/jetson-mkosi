@@ -1,0 +1,70 @@
+# Host tools the build needs, one per line. Comments and blank lines are
+# ignored. The list is derived from mkosi's own "tools tree" definition for
+# Debian-family hosts (mkosi/resources/mkosi-tools/ in the mkosi source tree),
+# which is the authoritative list of the programs mkosi shells out to.
+
+# mkosi itself is a Python program; pefile is used to read and write the PE
+# headers of EFI binaries, and git is how we fetch a pinned mkosi release.
+python3
+python3-pip
+python3-pefile
+git
+
+# Installing Ubuntu packages into the target root filesystem. mkosi runs apt and
+# dpkg from here, pointed at the image directory, rather than from inside the
+# image. ubuntu-keyring holds the GPG keys that verify the Ubuntu archive.
+apt
+apt-utils
+dpkg
+ca-certificates
+curl
+gnupg
+ubuntu-keyring
+
+# Turning the finished root filesystem into a partitioned disk image.
+# systemd-repart writes the GPT partition table and the filesystems, ukify
+# assembles the unified kernel image, and mtools writes files into the FAT
+# filesystem of the EFI system partition without needing to mount it. fdisk
+# brings sfdisk, which scripts/verify.sh uses to read the table back.
+systemd
+systemd-repart
+systemd-boot-tools
+systemd-ukify
+dosfstools
+e2fsprogs
+mtools
+fdisk
+
+# Filesystem and archive formats mkosi can read or emit. Not all are used by
+# this image, but mkosi probes for them and warns when they are missing.
+btrfs-progs
+erofs-utils
+squashfs-tools
+xfsprogs
+libarchive-tools
+cpio
+tar
+xz-utils
+zstd
+
+# Odds and ends: kmod for depmod when the initramfs is assembled, openssl for
+# signing, policycoreutils for SELinux labelling (a no-op for Ubuntu images).
+kmod
+keyutils
+openssl
+mount
+policycoreutils
+
+# The aarch64 emulator. Installing an arm64 .deb is not just unpacking files:
+# dpkg runs each package's maintainer scripts, and for an arm64 package those
+# scripts run arm64 programs. qemu-user lets them run on this x86-64 host.
+qemu-user
+
+# A whole emulated arm64 machine, with UEFI firmware for it, so that a built
+# image can be booted here before anyone carries it to a Jetson. See
+# scripts/qemu-boot.sh for what that does and does not prove. These add about
+# 460 MB to this container; if you never run `just vm`, they are dead weight and
+# can be removed.
+qemu-system-arm
+qemu-efi-aarch64
+ipxe-qemu

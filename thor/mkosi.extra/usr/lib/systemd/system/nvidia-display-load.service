@@ -1,0 +1,23 @@
+# Load the GPU and display drivers once the platform has finished coming up.
+#
+# This exists because nvidia-defer-autoload.conf stops udev from loading them
+# early, when the probe would fail. Something still has to load them, and this
+# is that something. It replaces NVIDIA's own nv-load-display-modules.service,
+# which cannot be used here: it runs 'depmod -a', and depmod writes its output
+# into /usr, which is read-only in this image.
+#
+# Loading nvidia_drm is enough to bring up the whole stack. The install line in
+# nvidia-display.conf pulls in nvidia.ko and nvidia-uvm as dependencies.
+
+[Unit]
+Description=Load the NVIDIA openrm GPU and display modules after platform init
+After=systemd-modules-load.service
+Before=display-manager.service nvpmodel.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/modprobe nvidia_drm
+
+[Install]
+WantedBy=multi-user.target
