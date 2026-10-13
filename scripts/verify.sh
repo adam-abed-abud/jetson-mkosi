@@ -95,9 +95,13 @@ read -r root_offset root_size < <(offset_of 1)
 # losetup picks the next free loop device, but inside a container the matching
 # node under /dev may not have been created, so create it if it is missing. The
 # major number of a loop device is always 7 and the minor is its index.
+#
+# A just-allocated device is reported as "/dev/loopN (lost)", so trim the
+# annotation before using the name as a path.
 attach() {
     local offset=$1 size=$2 device
     device=$(losetup --find) || return 1
+    device=${device%% *}
     [[ -e $device ]] || mknod "$device" b 7 "${device##*/loop}"
     losetup --read-only --offset "$offset" --sizelimit "$size" "$device" "$IMAGE" || return 1
     printf '%s' "$device"
