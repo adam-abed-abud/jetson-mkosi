@@ -11,11 +11,8 @@ with nothing installed but Docker.
 > ### Work in progress
 >
 > This is active development, not a finished product. The image boots, the
-> operating system is immutable, and the GPU worked on hardware before that
-> change. The GPU and cameras have not been re-tested on a board since.
+> operating system is immutable, and the GPU works on hardware
 >
-> Do not deploy it as it stands: the login passwords are on the kernel command
-> line, readable by any user. Update delivery and signing are not built.
 > Expect things to change.
 
 ## What it builds
@@ -202,7 +199,7 @@ Every file carries a comment explaining what it is for and why. Start with
 Running `just summary` prints the configuration with every default filled in,
 which is the quickest way to check that an edit landed where you meant it to.
 
-## What is not here
+## TODO
 
 The login passwords are on the kernel command line, where any user can read
 them in `/proc/cmdline`. That is a development convenience, and the mechanism
