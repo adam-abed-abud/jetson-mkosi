@@ -236,35 +236,35 @@ which is the quickest way to check that an edit landed where you meant it to.
 
 ## TODO
 
-The login passwords are on the kernel command line, where any user can read
-them in `/proc/cmdline`. That is a development convenience, and the mechanism
-to replace it exists: supply an SSH key per device and drop the password
-credentials.
+- [ ] Drop the login passwords from the kernel command line, where any user can
+      read them in `/proc/cmdline`. The replacement exists: supply an SSH key
+      per device and remove the password credentials.
 
-There is no update mechanism. How an image reaches a device in the field, which
-covers over-the-air delivery, A/B slots, rollback and NVIDIA's `nvbootctrl`, is
-a separate workstream. The partition layout does not foreclose one.
+- [ ] Reserve the second A/B slot. An update scheme wants a spare `usr`
+      partition and its verity partition, sized at build time; adding them
+      afterwards means repartitioning devices already in the field. The ESP is
+      512 MB against a 94 MB kernel image, which fits two but leaves little
+      room.
 
-The second A/B slot is not reserved. An update scheme wants a spare `usr`
-partition and its verity partition, sized at build time, and adding them
-afterwards means repartitioning devices that are already in the field. The ESP
-is 512 MB against a 94 MB kernel image, which fits two but leaves little room.
+- [ ] Confirm the build is reproducible. A squashfs from the same inputs should
+      produce the same bytes, which is what makes a block level delta cheap
+      under any update tool, but two builds have not been compared.
 
-Builds are not known to be reproducible. A squashfs built from the same inputs
-should produce the same bytes, which is what makes a block level delta cheap
-under any update tool, but two builds have not been compared.
+- [ ] Verify factory reset. The writable partition is marked
+      `FactoryReset=yes`, so setting the `FactoryReset` EFI variable or passing
+      `systemd.factory_reset=yes` should wipe and recreate it, and nothing has
+      confirmed that.
 
-Factory reset is untested. The writable partition is marked `FactoryReset=yes`,
-so setting the `FactoryReset` EFI variable or passing
-`systemd.factory_reset=yes` should wipe and recreate it, but nothing has
-confirmed that.
+- [ ] Choose an update mechanism. How an image reaches a device in the field,
+      covering over-the-air delivery, rollback and NVIDIA's `nvbootctrl`, is a
+      separate workstream. The partition layout does not foreclose one.
 
-Nothing is signed. The unified kernel image carries no signature, and on a
-Jetson enrolling keys is a flash-time operation with NVIDIA's tools rather than
-a property of the image, so Secure Boot is scoped separately.
+- [ ] Sign the unified kernel image. On a Jetson, enrolling keys is a
+      flash-time operation with NVIDIA's tools rather than a property of the
+      image, so Secure Boot is scoped separately.
 
-There is no Orin variant. This builds for Thor only. Orin needs the `nvgpu` GPU
-driver where Thor needs `openrm`, and a different serial console.
+- [ ] Build an Orin variant, if it is ever wanted. Orin needs the `nvgpu` GPU
+      driver where Thor needs `openrm`, and a different serial console.
 
 ## Inspiration
 
@@ -274,7 +274,7 @@ This project is inspired by the following:
 built with mkosi, and the model for the immutable work: a verity-protected
 `/usr`, a hermetic `/etc`, and `systemd-repart` running on the device
 
-[bootc-jetson](https://github.com/yeetypete/bootc-jetson) builds a Thor root
+[bootc-jetson](https://github.com/yeetypete/bootc-jetson) builds a Jetson root
 filesystem as a container image
 
 ## License
