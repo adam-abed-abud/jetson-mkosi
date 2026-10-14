@@ -27,6 +27,9 @@ enable systemd-timesyncd.service
 # time, which never happens on a device whose /etc starts empty.
 enable ssh-keygen.service
 enable ssh.service
+
+# Per-device values, supplied as credentials on the ESP.
+enable jetson-provision.service
 enable avahi-daemon.service
 
 # /tmp as a tmpfs rather than a directory on the disk. On a system whose root

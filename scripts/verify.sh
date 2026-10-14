@@ -271,6 +271,15 @@ check "a repart definition for the writable partition ships" test -f "$usr/lib/r
 check "and it has no maximum size, so it fills the drive" bash -c "! grep -q SizeMaxBytes '$usr/lib/repart.d/50-root.conf'"
 check "the journal directory is created with it" grep -q "MakeDirectories=/var/log/journal" "$usr/lib/repart.d/50-root.conf"
 check "a recovery shell needs no password" test -f "$usr/lib/systemd/system/emergency.service.d/sulogin-force.conf"
+check "per-device provisioning is installed" test -x "$usr/lib/jetson/provision.sh"
+check "and it runs before what consumes the values" grep -q "Before=systemd-networkd.service" "$usr/lib/systemd/system/jetson-provision.service"
+check "and waits for the ESP it reads them from" grep -q "RequiresMountsFor=/efi" "$usr/lib/systemd/system/jetson-provision.service"
+for cred in jetson.hostname jetson.network ssh.authorized_keys.ubuntu; do
+    check "it handles the $cred credential" grep -q "$cred" "$usr/lib/jetson/provision.sh"
+done
+# ImportCredential= fails with 243/CREDENTIALS on anything systemd-stub reads
+# from the ESP, because nothing signs it and there is no TPM to decrypt with.
+check "no unit imports an ESP credential" bash -c "! grep -rq 'ImportCredential=jetson' '$usr/lib/systemd/system/'"
 check "initramfs-tools is not installed" test ! -e "$usr/share/initramfs-tools/hooks/btrfs"
 echo
 

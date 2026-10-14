@@ -1,0 +1,20 @@
+# Applies hostname, network configuration and the operator's SSH key from
+# credentials dropped on the ESP after flashing. See usr/lib/jetson/provision.sh.
+#
+# Ordered before everything that consumes those values. sysusers must have run
+# first, or the ubuntu account the key belongs to does not exist yet.
+
+[Unit]
+Description=Apply per-device configuration from credentials
+After=systemd-sysusers.service systemd-tmpfiles-setup.service
+Before=systemd-networkd.service avahi-daemon.service ssh.service
+
+RequiresMountsFor=/efi
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/jetson/provision.sh
+
+[Install]
+WantedBy=multi-user.target

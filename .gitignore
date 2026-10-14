@@ -6,9 +6,11 @@
 /tty_console_output.txt
 *.console.log
 
-# Working notes, kept locally but not published.
+# Working notes, kept locally but not published. provisioning.md is the
+# exception: it ships with the repository.
 /design_doc.md
-/docs/
+/docs/*
+!/docs/provisioning.md
 
 # Everything mkosi writes. The two cache directories are worth keeping between
 # builds -- see thor/mkosi.conf -- but they are downloads, not sources.

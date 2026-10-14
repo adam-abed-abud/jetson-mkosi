@@ -39,6 +39,27 @@ select entry in "${devices[@]}"; do
 done
 device=${entry%% *}
 
+# A drive that has already dropped off the bus accepts no writes at all, and dd
+# reports it as an I/O error after a long wait rather than as the obvious thing.
+# Re-plugging the enclosure is what clears it.
+state_file=/sys/block/${device##*/}/device/state
+if [[ -r $state_file && $(< "$state_file") != running ]]; then
+    echo "$device is $(< "$state_file"), not running." >&2
+    echo "Unplug the enclosure, plug it back in, and try again." >&2
+    exit 1
+fi
+
+# Desktops automount partitions the moment a drive is attached. Writing
+# underneath a mounted filesystem corrupts it and can wedge the drive.
+mounted=$(lsblk -nro MOUNTPOINTS "$device" | grep -v '^$' || true)
+if [[ -n $mounted ]]; then
+    echo "$device has mounted partitions:" >&2
+    printf '    %s\n' $mounted >&2
+    echo "Unmount them first, for example:" >&2
+    echo "    udisksctl unmount -b ${device}2" >&2
+    exit 1
+fi
+
 echo
 echo "About to write $IMAGE to $entry."
 echo "Everything currently on that drive will be destroyed."
@@ -60,6 +81,15 @@ sudo dd if="$IMAGE" of="$device" bs=4M status=progress oflag=direct conv=fsync
 # Checking here rather than trusting dd: a failed flush is exactly the case
 # where the bytes are not on the drive and nothing else says so.
 sync
+
+# The drive can also go offline during the write, in which case dd may still
+# exit cleanly having written nothing useful.
+if [[ -r $state_file && $(< "$state_file") != running ]]; then
+    echo >&2
+    echo "$device went $(< "$state_file") during the write. Nothing can be" >&2
+    echo "trusted on it. Re-plug the enclosure and flash again." >&2
+    exit 1
+fi
 echo
 echo "Done. Check it landed before trusting it:"
 echo "    just verify-drive $device"
