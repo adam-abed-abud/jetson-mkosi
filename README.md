@@ -210,6 +210,20 @@ There is no update mechanism. How an image reaches a device in the field, which
 covers over-the-air delivery, A/B slots, rollback and NVIDIA's `nvbootctrl`, is
 a separate workstream. The partition layout does not foreclose one.
 
+The second A/B slot is not reserved. An update scheme wants a spare `usr`
+partition and its verity partition, sized at build time, and adding them
+afterwards means repartitioning devices that are already in the field. The ESP
+is 512 MB against a 94 MB kernel image, which fits two but leaves little room.
+
+Builds are not known to be reproducible. A squashfs built from the same inputs
+should produce the same bytes, which is what makes a block level delta cheap
+under any update tool, but two builds have not been compared.
+
+Factory reset is untested. The writable partition is marked `FactoryReset=yes`,
+so setting the `FactoryReset` EFI variable or passing
+`systemd.factory_reset=yes` should wipe and recreate it, but nothing has
+confirmed that.
+
 Nothing is signed. The unified kernel image carries no signature, and on a
 Jetson enrolling keys is a flash-time operation with NVIDIA's tools rather than
 a property of the image, so Secure Boot is scoped separately.
