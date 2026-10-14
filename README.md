@@ -1,6 +1,6 @@
 # jetson-mkosi
 
-Build a root filesystem for the NVIDIA Jetson AGX Thor with
+Build an immutable operating system for the NVIDIA Jetson AGX Thor with
 [mkosi](https://github.com/systemd/mkosi), systemd's image builder.
 
 The output is one disk image holding an EFI system partition and an immutable
@@ -93,6 +93,41 @@ Without `just`:
 docker build --tag jetson-mkosi-builder builder/
 docker run --rm --privileged --volume "$PWD:/work" --workdir /work/thor \
     jetson-mkosi-builder mkosi --force build
+```
+
+### What verify checks
+
+`just verify` opens the image and checks every adaptation this repository
+makes. It takes about ten seconds, so it best to run it on most changes.
+Here is an example of the output:
+
+```
+Partition table
+  ok    a /usr partition is typed as arm64 usr
+  ok    and its verity hash partition is present
+  ok    no root partition in the image (the device creates it)
+
+Kernel command line
+  ok    nvme.use_threaded_interrupts=1
+  ok    usrhash=
+  ok    no unsubstituted root=PARTUUID placeholder
+
+GPU userspace
+  ok    and it points at the openrm build, not nvgpu
+  ok    ld.so.cache is captured for the device
+
+NVIDIA services
+  ok    nvfancontrol.service moved into /usr
+  ok    nv-l4t-bootloader-config.service is masked in /usr
+
+Vendor /etc
+  ok    PAM moved into /usr, so login can authenticate
+  ok    no SSH host keys are shipped
+
+Accounts
+  ok    and it is in the render group
+
+82 checks passed, 0 failed.
 ```
 
 ## Installing it on a Thor
