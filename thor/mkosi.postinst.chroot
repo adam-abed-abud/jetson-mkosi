@@ -29,7 +29,13 @@ rm -f /etc/modprobe.d/tegra-igpu-jetson-defaults_nvidia-display_nvidia-tegra.con
 # symlinks are made here instead, at build time, when /usr is still writable.
 #
 # 'openrm' is the Thor choice. An Orin image would point at the nvgpu directory.
-gpu_libs=/opt/nvidia/l4t-gpu-libs/openrm
+# /opt is outside /usr, so none of it would ship. Move the whole tree in; a
+# tmpfiles symlink puts /opt/nvidia back at runtime for anything hardcoding it.
+mkdir -p /usr/lib/nvidia-opt
+mv /opt/nvidia/* /usr/lib/nvidia-opt/
+rmdir /opt/nvidia
+
+gpu_libs=/usr/lib/nvidia-opt/l4t-gpu-libs/openrm
 ln -sfnT "$gpu_libs/libcuda.so"   /usr/lib/aarch64-linux-gnu/libcuda.so
 ln -sfnT "$gpu_libs/libcuda.so.1" /usr/lib/aarch64-linux-gnu/libcuda.so.1
 
@@ -76,6 +82,7 @@ rm -f \
     /etc/systemd/system/nv-l4t-bootloader-config.service \
     /etc/systemd/system/nv-load-display-modules.service \
     /etc/systemd/system/nv-load-gpu-libs.service \
+    /etc/systemd/system/nv-rootfs-validation-config.service \
     /etc/systemd/system/nvpmodel.service \
     /etc/systemd/system/multi-user.target.wants/nv-l4t-bootloader-config.service \
     /etc/systemd/system/multi-user.target.wants/nv-load-display-modules.service \
@@ -83,13 +90,24 @@ rm -f \
     /etc/systemd/system/sysinit.target.wants/nv-load-gpu-libs.service
 
 # Masking replaces the unit with a link to /dev/null, which makes it impossible
-# to start -- including as a dependency of something else that is running.
-systemctl mask \
-    nv-graphics.service \
-    nv-l4t-bootloader-config.service \
-    nv-load-display-modules.service \
-    nv-load-gpu-libs.service \
-    nvpmodel.service
+# to start -- including as a dependency of something else that is running. The
+# links go in /usr rather than /etc, which this image does not ship, so
+# 'systemctl mask' cannot be used.
+for unit in nv-graphics nv-l4t-bootloader-config nv-load-display-modules \
+            nv-load-gpu-libs nvpmodel nv-rootfs-validation-config; do
+    ln -sfnT /dev/null "/usr/lib/systemd/system/$unit.service"
+done
+
+# The remaining NVIDIA units are real files that the packages install into
+# /etc/systemd/system, which is unusual and which an image carrying only /usr
+# would discard. nvfancontrol is among them and Thor needs it for cooling.
+for unit in /etc/systemd/system/nv*.service; do
+    [ -f "$unit" ] && [ ! -L "$unit" ] || continue
+    mv "$unit" /usr/lib/systemd/system/
+done
+if [ -d /etc/systemd/system/nv_nvsciipc_init.service.wants ]; then
+    mv /etc/systemd/system/nv_nvsciipc_init.service.wants /usr/lib/systemd/system/
+fi
 
 # --- 5. A user to log in as ---------------------------------------------------
 #
@@ -101,14 +119,22 @@ systemctl mask \
 # owns /dev/dri/renderD128, the device node CUDA opens; without membership the
 # first CUDA call fails with error 801, which reads as "operation not supported"
 # and sends people hunting for a driver problem that is not there.
-groupadd --force --system debug
-useradd --create-home --shell /bin/bash \
-        --groups sudo,adm,dialout,video,render,debug \
-        ubuntu
-echo 'ubuntu:ubuntu' | chpasswd
+# The account itself is declared in usr/lib/sysusers.d/jetson.conf, because an
+# entry written here would live in /etc/passwd and the image does not ship /etc.
+# Only the sudo rule stays, and it reaches the device through the factory copy.
 echo 'ubuntu ALL=(root) NOPASSWD:ALL' > /etc/sudoers.d/ubuntu
 chmod 0440 /etc/sudoers.d/ubuntu
 
 # Ubuntu 24.04 removed the pam_lastlog module but left a reference to it in the
 # login configuration, so every console login prints a failure to load it.
 sed -i '/pam_lastlog\.so/d' /etc/pam.d/login
+
+# --- 6. Move the PAM configuration into /usr ---------------------------------
+#
+# Ubuntu ships every PAM stack in /etc/pam.d, which does not exist on an image
+# that only carries /usr. Without them login aborts with "PAM Failure".
+# A tmpfiles symlink points /etc/pam.d back here at boot. This has to come
+# after anything above that edits a file in /etc/pam.d.
+mv /etc/pam.d/* /usr/lib/pam.d/
+rmdir /etc/pam.d
+sed -i '/\/etc\/pam.d/d' /usr/lib/tmpfiles.d/debian.conf

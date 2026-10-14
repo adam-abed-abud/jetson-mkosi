@@ -25,7 +25,7 @@
 # The first argument is usually the built image file, but a block device works
 # just as well -- the flashed drive, attached over USB. Booting the drive rather
 # than the image answers a question the image cannot: whether the flash actually
-# landed. -snapshot means the drive is only ever read, never written to.
+# landed. Writes go to a throwaway overlay, so the drive is only ever read.
 #
 # There are two modes, and they exist for different jobs. By default this is a
 # test: the console goes to a logfile, the script watches it for a login prompt,
@@ -56,12 +56,17 @@ fi
 # UEFI keeps its variables in a writable firmware volume, so it needs a copy of
 # its own rather than the read-only one the package ships.
 vars=$(mktemp /tmp/AAVMF_VARS.XXXXXX.fd)
-trap 'rm -f "$vars"' EXIT
 cp /usr/share/AAVMF/AAVMF_VARS.fd "$vars"
 
-# -snapshot sends every write to a temporary overlay, so the image file is left
-# exactly as it was and can be booted again or flashed afterwards. That is also
-# what makes it safe to point this at a flashed drive.
+# Present a disk larger than the image, the way a flashed drive is. The image
+# ends where its last partition does, so booting it directly leaves no free
+# space and systemd-repart cannot create the partition it makes on first boot.
+# A qcow2 overlay keeps the image itself untouched.
+disk=$(mktemp /tmp/qemu-disk.XXXXXX.qcow2)
+qemu-img create -q -f qcow2 -b "$(realpath "$IMAGE")" -F raw "$disk" "${QEMU_DISK:-16G}"
+
+trap 'rm -f "$vars" "$disk"' EXIT
+
 # cortex-a72 rather than the newest CPU model: emulating fewer optional
 # instruction set features is considerably faster when there is no hardware
 # virtualisation to fall back on, which there is not on an x86-64 host.
@@ -88,10 +93,9 @@ machine=(
     -cpu "${QEMU_CPU:-cortex-a72}"
     -smp "${QEMU_SMP:-4}"
     -m "${QEMU_MEM:-4096}"
-    -snapshot
     -drive if=pflash,format=raw,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd
     -drive if=pflash,format=raw,file="$vars"
-    -drive if=none,id=disk0,format=raw,file="$IMAGE"
+    -drive if=none,id=disk0,format=qcow2,file="$disk"
     -device virtio-blk-pci,drive=disk0,bootindex=0
     -device virtio-rng-pci
     -netdev "$netdev"

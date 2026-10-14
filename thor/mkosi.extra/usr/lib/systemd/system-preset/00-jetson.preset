@@ -23,6 +23,9 @@ enable systemd-resolved.service
 enable systemd-timesyncd.service
 
 # Remote access, and mDNS so the board answers to <hostname>.local.
+# The keygen service is ours; Ubuntu makes host keys at package install
+# time, which never happens on a device whose /etc starts empty.
+enable ssh-keygen.service
 enable ssh.service
 enable avahi-daemon.service
 

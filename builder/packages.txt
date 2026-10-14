@@ -30,6 +30,9 @@ systemd
 systemd-repart
 systemd-boot-tools
 systemd-ukify
+# systemd-repart dlopens libcryptsetup for Verity= and Encrypt=, and reports
+# them as unsupported without it.
+libcryptsetup12
 dosfstools
 e2fsprogs
 mtools
@@ -68,3 +71,6 @@ qemu-user
 qemu-system-arm
 qemu-efi-aarch64
 ipxe-qemu
+# qemu-img builds the overlay that gives the emulated disk free space beyond
+# the image, so first-boot repartitioning behaves as it does on a real drive.
+qemu-utils

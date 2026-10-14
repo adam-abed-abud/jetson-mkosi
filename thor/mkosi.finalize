@@ -1,0 +1,41 @@
+#!/bin/bash
+# Capture the build-time /etc into /usr/share/factory/etc.
+#
+# The image ships only /usr, so everything the packages wrote to /etc would be
+# lost. tmpfiles.d links the paths that matter back out of this copy at boot;
+# see mkosi.extra/usr/lib/tmpfiles.d/etc-jetson.conf.
+
+set -euo pipefail
+
+mkdir -p "$BUILDROOT/usr/share/factory"
+cp --archive --no-target-directory --update=none "$BUILDROOT/etc" "$BUILDROOT/usr/share/factory/etc"
+
+# Host keys must be generated per device, not shared by every image.
+rm -f "$BUILDROOT/usr/share/factory/etc/ssh/ssh_host_"*
+
+# The dpkg database lives in /var, so move it into the factory and link it back.
+# It stays read-only: nothing can install packages on a verity protected /usr.
+if [ -d "$BUILDROOT/var/lib/dpkg" ]; then
+    mkdir -p "$BUILDROOT/usr/share/factory/var/lib"
+    mv "$BUILDROOT/var/lib/dpkg" "$BUILDROOT/usr/share/factory/var/lib/dpkg"
+fi
+
+# NVIDIA's camera tuning data also ships in /var, which is created empty on the
+# device. Copied rather than linked, because nvargus writes into it.
+if [ -d "$BUILDROOT/var/nvidia" ]; then
+    mkdir -p "$BUILDROOT/usr/share/factory/var"
+    mv "$BUILDROOT/var/nvidia" "$BUILDROOT/usr/share/factory/var/nvidia"
+fi
+
+# mkosi writes its own loader.conf when it installs the bootloader, overwriting
+# anything an extra tree put there, so ours goes in last. The menu and editor
+# are what make a recovery boot reachable: press e, append
+# systemd.unit=emergency.target. Set "editor no" once devices are locked down.
+# The ESP is filled from both /boot and /efi, in that order, so a loader.conf
+# in /efi wins. Write both.
+for d in boot efi; do
+    if [ -d "$BUILDROOT/$d/loader" ] || [ -d "$BUILDROOT/$d/EFI" ]; then
+        mkdir -p "$BUILDROOT/$d/loader"
+        printf 'timeout 5\neditor yes\n' >"$BUILDROOT/$d/loader/loader.conf"
+    fi
+done
