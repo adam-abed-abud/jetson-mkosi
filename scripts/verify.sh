@@ -234,6 +234,14 @@ check "no SSH host keys are shipped" test -z "$(find "$factory/ssh" -name 'ssh_h
 check "the sudo rule for the operator is captured" test -f "$factory/sudoers.d/ubuntu"
 check "host keys are generated on the device instead" test -f "$usr/lib/systemd/system/ssh-keygen.service"
 check "the console setup tree is captured" test -d "$factory/console-setup"
+# A symlink into /etc/alternatives, so test for the link, not the target.
+check "setvtrgb's palette file is captured" test -L "$factory/vtrgb"
+check "and the alternatives tree it points into is linked" grep -q "^L /etc/alternatives" "$usr/lib/tmpfiles.d/etc-jetson.conf"
+# These read configuration that tmpfiles links in at boot, so they must not run
+# before it. keyboard-setup ships Before=local-fs-pre.target, far too early.
+for unit in console-setup keyboard-setup setvtrgb; do
+    check "$unit runs after tmpfiles" test -f "$usr/lib/systemd/system/$unit.service.d/after-tmpfiles.conf"
+done
 # systemd 255 has no "?" modifier; such a line is rejected and the link never
 # made, silently, which is how avahi and console-setup came to fail.
 check "no tmpfiles line uses an unsupported modifier" bash -c "! grep -qE '^[A-Za-z]\\?' '$usr/lib/tmpfiles.d/etc-jetson.conf'"
