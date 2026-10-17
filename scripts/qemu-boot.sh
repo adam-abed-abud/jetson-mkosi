@@ -122,7 +122,11 @@ if [[ $CONSOLE -eq 1 ]]; then
     echo "Or skip this console altogether -- from another terminal, once the"
     echo "machine is up, 'ssh -p ${SSH_PORT:-2222} ubuntu@localhost' gives you a"
     echo "shell with nothing else writing to it."
-    qemu-system-aarch64 "${machine[@]}" -serial mon:stdio
+    # The image ships no passwords. This hands one to the VM over SMBIOS,
+    # which systemd accepts as a trusted credential, so console login works
+    # here and nowhere else.
+    qemu-system-aarch64 "${machine[@]}" -serial mon:stdio \
+        -smbios type=11,value=io.systemd.credential:passwd.plaintext-password.ubuntu=ubuntu
     exit $?
 fi
 

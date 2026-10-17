@@ -13,6 +13,12 @@ cp --archive --no-target-directory --update=none "$BUILDROOT/etc" "$BUILDROOT/us
 # Host keys must be generated per device, not shared by every image.
 rm -f "$BUILDROOT/usr/share/factory/etc/ssh/ssh_host_"*
 
+# The NVMe host identifiers are random per install, so they both break a
+# reproducible build and give every device the same identity. Drop them;
+# nvme-cli regenerates them when first needed.
+rm -f "$BUILDROOT/usr/share/factory/etc/nvme/hostid" \
+      "$BUILDROOT/usr/share/factory/etc/nvme/hostnqn"
+
 # The dpkg database lives in /var, so move it into the factory and link it back.
 # It stays read-only: nothing can install packages on a verity protected /usr.
 if [ -d "$BUILDROOT/var/lib/dpkg" ]; then

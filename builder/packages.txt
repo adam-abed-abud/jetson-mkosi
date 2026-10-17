@@ -74,3 +74,7 @@ ipxe-qemu
 # qemu-img builds the overlay that gives the emulated disk free space beyond
 # the image, so first-boot repartitioning behaves as it does on a real drive.
 qemu-utils
+
+# The image has no passwords, so the way into a booted VM is an SSH key, the
+# same as on a device. ssh-keygen also makes the throwaway test keys.
+openssh-client

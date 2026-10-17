@@ -67,6 +67,19 @@ check_contains "an EFI system partition exists" "$table" "C12A7328-F81F-11D2-BA4
 # lets the kernel find both from the root hash alone.
 check_contains "a /usr partition is typed as arm64 usr" "$table" "B0E01050-EE5F-4390-949A-9101B17104E9"
 check_contains "and its verity hash partition is present" "$table" "6E11A4E7-FBCA-4DED-B9E9-E1A512BB664E"
+# A/B: an empty second slot, the same size as the first. Unequal slots break
+# on the second update, which must fit whichever slot is inactive.
+slots=$(printf '%s' "$table" | python3 -c '
+import json, sys
+parts = json.load(sys.stdin)["partitiontable"]["partitions"]
+usr = [p["size"] for p in parts if p["type"] == "B0E01050-EE5F-4390-949A-9101B17104E9"]
+ver = [p["size"] for p in parts if p["type"] == "6E11A4E7-FBCA-4DED-B9E9-E1A512BB664E"]
+print(f"usr={len(usr)} verity={len(ver)} usr_equal={len(set(usr))==1} verity_equal={len(set(ver))==1}")
+')
+check_contains "a second /usr slot is reserved" "$slots" "usr=2"
+check_contains "with its own verity slot" "$slots" "verity=2"
+check_contains "and the two /usr slots are the same size" "$slots" "usr_equal=True"
+check_contains "as are the two verity slots" "$slots" "verity_equal=True"
 # A root partition in the image would mean the device-side repart never ran.
 if printf '%s' "$table" | grep -qF "B921B045-1DF0-41C3-AF44-4C6F280D3FAE"; then
     printf '  FAIL  no root partition in the image (the device creates it)\n'
@@ -161,6 +174,12 @@ for arg in nvme.use_threaded_interrupts=1 tegra_keep_boot_clocks clk_ignore_unus
            systemd.firstboot=off; do
     check_contains "$arg" "$cmdline" "$arg"
 done
+# Passwords on the command line are readable by any user in /proc/cmdline.
+if printf '%s' "$cmdline" | grep -qE "set-credential|passwd\."; then
+    printf '  FAIL  no password or credential on the command line\n'; failed=$((failed + 1))
+else
+    printf '  ok    no password or credential on the command line\n'; passed=$((passed + 1))
+fi
 # The placeholder mkosi only substitutes when there is no verity hash. Left in,
 # it reaches the kernel verbatim and the boot fails.
 if printf '%s' "$cmdline" | grep -qF "root=PARTUUID\b"; then
@@ -231,6 +250,9 @@ check "PAM moved into /usr, so login can authenticate" test -f "$usr/lib/pam.d/l
 check "sshd configuration is captured" test -f "$factory/ssh/sshd_config"
 # Shared host keys would make every device the same host to an SSH client.
 check "no SSH host keys are shipped" test -z "$(find "$factory/ssh" -name 'ssh_host_*' 2>/dev/null)"
+# Random per install: shipping them breaks reproducibility and shares one NVMe
+# identity across every device.
+check "no NVMe host identifiers are shipped" test ! -e "$factory/nvme/hostid" -a ! -e "$factory/nvme/hostnqn"
 check "the sudo rule for the operator is captured" test -f "$factory/sudoers.d/ubuntu"
 check "host keys are generated on the device instead" test -f "$usr/lib/systemd/system/ssh-keygen.service"
 check "the console setup tree is captured" test -d "$factory/console-setup"
